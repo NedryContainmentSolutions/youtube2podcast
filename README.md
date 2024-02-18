@@ -15,7 +15,7 @@ Python code designed to run on AWS Lambda which will check a YouTube playlist, t
 
 At this point you should be able to test the code, add a video to your playlist, deploy and hit 'Test' on the lambda. Your S3 bucket should now contain an m4a audio file, a RSS file for the podcast and an index file.
 
-10. Assuming that worked you need to find a way to trigger your new lambda. I used Eventbridge Scheduled events to trigger the lambda every 15 mins.
+10. Assuming that worked you need to find a way to trigger your new Lambda. I used [Eventbridge Scheduled events](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-create-rule-schedule.html) to trigger the Lambda every 15 mins. Assuming no new videos the code only runs for a few seconds and so you could make it more frequent but I don't know if YouTube has any rate limits.
 11. To be able to access the audio files and .RSS file you need to make your S3 bucket public and grant public read access. Use the AWS documentation to do this and ensure you understand how this is set up.
 12. Go to your podcast app (I recommend [Overcast](https://overcast.fm/podcasts)) and add the URL of your RSS file as a private podcast feed.
 
