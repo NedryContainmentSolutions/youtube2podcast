@@ -36,7 +36,7 @@ jobs:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     needs: build
     runs-on: ubuntu-latest
-02
+
     steps:
     - name: Download deployment package
       uses: actions/download-artifact@v3
