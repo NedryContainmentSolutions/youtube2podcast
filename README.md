@@ -61,3 +61,17 @@ You can also run this code locally and debug using your IDE of choice. Use the A
 - Create src/.env file containing the relevant environment variables (or populate them some other way)
 - `pip install -r requirements.txt`, ideally having created a [venv]([venv — Creation of virtual environments — Python 3.12.4 documentation](https://docs.python.org/3/library/venv.html)) first.
 - run lambda_function.py
+
+## Release Process
+
+The `.github/workflows/release.yml` workflow file uses `build.sh` to produce a deployment package zip suitable for updating the Lambda.
+
+The workflow runs on push, where there's a semver-based tag
+
+```yml
+on:
+  push:
+    tags: [ 'v*.*.*' ]
+```
+
+When ready to create a release, tag your commit (e.g., `git tag v1.0.0` and `git push origin v1.0.0`). This will trigger the workflow, run your `build.sh` script, and publish the resultant `deployment_package.zip` as a release asset.
