@@ -1,0 +1,24 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "DenyPublicListBucket",
+            "Effect": "Deny",
+            "Principal": "*",
+            "Action": "s3:ListBucket",
+            "Resource": "arn:aws:s3:::my-podcast-bucket-01",
+            "Condition": {
+                "StringNotEquals": {
+                    "aws:PrincipalArn": "arn:aws:iam::123456789012:user/some.iam.user"
+                }
+            }
+        },
+        {
+            "Sid": "AllowPublicReadInFolder",
+            "Effect": "Allow",
+            "Principal": "*",
+            "Action": "s3:GetObject",
+            "Resource": "arn:aws:s3:::my-podcast-bucket-01/some-obscure-folder-name/*"
+        }
+    ]
+}
