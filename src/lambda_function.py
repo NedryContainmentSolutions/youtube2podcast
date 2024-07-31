@@ -20,6 +20,7 @@ CONTENT_PATH = os.getenv("CONTENT_PATH")
 PLAYLIST_URL = os.getenv("PLAYLIST_URL")
 WEBHOOK_TARGET = os.getenv("WEBHOOK_TARGET")
 AUDIO_EXTENSION = "m4a"
+MAX_FILES_TO_DOWNLOAD = int(os.getenv("MAX_FILES_TO_DOWNLOAD","2"))
 
 youtube_url_prefix = "https://www.youtube.com/watch?v="
 s3_bucket_url = f"https://{BUCKET_NAME}.s3.{AWS_REGION}.amazonaws.com/{CONTENT_PATH}"
@@ -210,6 +211,7 @@ def process_videos():
     now = datetime.now()
     new_videos = False
     logger.info("Processing videos from playlist:")
+    files_downloaded = 0
     for video in playlist:
         this_video = youtube_url_prefix + video["id"]
         if check_if_in_file(log_file_name, this_video):
@@ -244,13 +246,30 @@ def process_videos():
                     if WEBHOOK_TARGET:
                         requests.post(url=WEBHOOK_TARGET, json={"content": f"New clip saved: {title}"})
 
-    if new_videos:
-        logger.info("Generating RSS file")
-        write_rss_file(log_file_name)
-        if upload_file_to_s3(log_file_name) and upload_file_to_s3(output_rss_filename):
-            logger.info("File uploaded to S3")
-        else:
-            logger.info("Error with upload to S3")
+                    # Updating the RSS every time - less efficient but safer in case lambda times out
+                    logger.info("Regenerating RSS file")
+                    write_rss_file(log_file_name)
+                    if upload_file_to_s3(log_file_name) and upload_file_to_s3(output_rss_filename):
+                        logger.info("Updated RSS file uploaded to S3")
+                    else:
+                        logger.info("Error with RSS file upload to S3")
+                    
+                    files_downloaded += 1
+                    if files_downloaded >= MAX_FILES_TO_DOWNLOAD:
+                        logger.info(f"Stopping because MAX_FILES_TO_DOWNLOAD is {MAX_FILES_TO_DOWNLOAD}")
+                        break
+
+    # if new_videos:
+    #     logger.info("Regenerating RSS file")
+    #     write_rss_file(log_file_name)
+    #     if upload_file_to_s3(log_file_name) and upload_file_to_s3(output_rss_filename):
+    #         logger.info("Updated RSS file uploaded to S3")
+    #     else:
+    #         logger.info("Error with RSS file upload to S3")
+    # else:
+    #     logger.info("Nothing new so nothing to do")
+    if files_downloaded > 0:
+        logger.info(f"Done - downloaded {files_downloaded} files")
     else:
         logger.info("Nothing new so nothing to do")
 
