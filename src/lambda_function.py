@@ -45,13 +45,6 @@ channel_header = (
 
 output_rss_filename = "podcast.rss"
 
-
-def lambda_handler(event, context):
-    # URL = 'https://www.youtube.com/watch?v=ekwOAPlkf9c'
-    # stdout = run_yt_dlp(URL)
-    return {"statusCode": 200, "body": f"Hello from Lambda!"}
-
-
 def download_audio_from_yt_video(url, format_code="140"):
     logger.info("---- Downloading audio")
 
@@ -73,7 +66,7 @@ def download_audio_from_yt_video(url, format_code="140"):
             info_with_audio_extension = dict(info)
             info_with_audio_extension["ext"] = AUDIO_EXTENSION
             # Return filename with the correct extension
-            return ydl.prepare_filename(info_with_audio_extension)
+            return ydl.prepare_filename(info_with_audio_extension), info_with_audio_extension["description"], info_with_audio_extension["thumbnail"]
 
     except Exception as e:
         logger.error(f"An error occurred: {e}")
@@ -177,6 +170,7 @@ def get_file_from_s3(filename):
 
 
 def write_rss_file(filename):
+    # Logfile format: YouTubeURL | Title | Time/Date | GUID | S3 URL | FileSizeBytes | thumbnail_url | description
     with open(f"{data_folder}/{output_rss_filename}", "w") as output_file:
         output_file.write(podcast_header)
         output_file.write("\n")
@@ -191,10 +185,15 @@ def write_rss_file(filename):
                     words = line.split("|")
                     output_file.write("<item>\n")
                     output_file.write(f"<title>{words[1]}</title>\n")
-                    output_file.write(f"<description>{words[0]}</description>\n")
+                    if(len(words) > 7):
+                        output_file.write(f"<description>{words[0]}\n{words[7]}</description>\n")
+                    else:
+                        output_file.write(f"<description>{words[0]}</description>\n")
                     output_file.write(f"<guid>{words[3]}</guid>\n")
                     output_file.write(f"<pubDate>{words[2]}</pubDate>\n")
                     output_file.write(f'<enclosure url="{words[4]}" type="audio/mpeg" length="{words[5]}"/>\n')
+                    if(len(words) > 7):
+                        output_file.write(f"<itunes:image>{words[6]}</itunes:image>\n")
                     output_file.write("</item>\n")
 
         output_file.write("</channel>\n")
@@ -222,7 +221,9 @@ def process_videos():
             episode_GUID = str(uuid.uuid4())
             
             logger.info("--- Download audio and process")
-            filepath = download_audio_from_yt_video(this_video)
+            filepath, description, thumbnail_url = download_audio_from_yt_video(this_video)
+            description = html.escape(description[:500].replace('|'," ").replace('\n', ' '))
+
             if not filepath:
                 logger.error(f"ERROR: failed to download {this_video}")
             else:
@@ -231,14 +232,16 @@ def process_videos():
                 if upload_audio_to_s3(filepath, episode_GUID):
                     s3_URL = f"{s3_bucket_url}{episode_GUID}.mp4a"
                     title = get_video_title(this_video)
-                    # Logfile format: YouTubeURL | Title | Time/Date | GUID | S3 URL | FileSizeBytes |
+                    # Logfile format: YouTubeURL | Title | Time/Date | GUID | S3 URL | FileSizeBytes | thumbnail_url | description
                     log_entry = (
                         f"{this_video}|"
                         f"{title}|"
-                        f"{now.strftime('%a, %d, %b %Y %H:%M:%S +0000')}|"
+                        f"{now.strftime('%a, %d %b %Y %H:%M:%S +0000')}|"
                         f"{episode_GUID}|"
                         f"{s3_URL}|"
                         f"{str(file_size)}|"
+                        f"{thumbnail_url}|"
+                        f"{description}|"
                     )
 
                     append_to_file(log_file_name, log_entry)
