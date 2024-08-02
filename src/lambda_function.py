@@ -25,6 +25,7 @@ MAX_FILES_TO_DOWNLOAD = int(os.getenv("MAX_FILES_TO_DOWNLOAD", "2"))
 youtube_url_prefix = "https://www.youtube.com/watch?v="
 s3_bucket_url = f"https://{BUCKET_NAME}.s3.{AWS_REGION}.amazonaws.com/{CONTENT_PATH}"
 log_file_name = "videos_downloaded.txt"
+download_log_json = "videos_downloaded.json"
 data_folder = "/tmp"
 # For yt-dlp's cache
 os.environ["XDG_CACHE_HOME"] = "/tmp/yt-dlp/cache"
@@ -228,7 +229,6 @@ def process_videos():
     logger.info("Get log file from S3")
     get_file_from_s3(log_file_name)
     now = datetime.now()
-    new_videos = False
     logger.info("Processing videos from playlist:")
     files_downloaded = 0
     for video in playlist:
@@ -236,7 +236,6 @@ def process_videos():
         if check_if_in_file(log_file_name, this_video):
             logger.info(f"-- {this_video} - Already got this video, skipping")
         else:
-            new_videos = True
             logger.info(f"-- {this_video} - New video to process")
             episode_GUID = str(uuid.uuid4())
 
@@ -297,7 +296,6 @@ def process_videos():
     else:
         logger.info("Nothing new so nothing to do")
 
-
 def lambda_handler(event, context):
     try:
         logger.info("Invoking Lambda")
@@ -310,3 +308,14 @@ def lambda_handler(event, context):
 
 if __name__ == "__main__":
     process_videos()
+
+    # Regenerate RSS file even if not changes - for dev/test work only
+    logger.info("Regenerating RSS file")
+    generate_rss_file(log_file_name)
+    if upload_file_to_s3(log_file_name) and upload_file_to_s3(
+        output_rss_filename
+    ):
+        logger.info("Updated RSS file uploaded to S3")
+    else:
+        logger.info("Error with RSS file upload to S3")
+
