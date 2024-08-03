@@ -22,6 +22,7 @@ WEBHOOK_TARGET = os.getenv("WEBHOOK_TARGET")
 AUDIO_EXTENSION = "m4a"
 MAX_FILES_TO_DOWNLOAD = int(os.getenv("MAX_FILES_TO_DOWNLOAD", "2"))
 
+CONTENT_PATH += '/' if not CONTENT_PATH.endswith('/') and CONTENT_PATH else ''
 youtube_url_prefix = "https://www.youtube.com/watch?v="
 s3_bucket_url = f"https://{BUCKET_NAME}.s3.{AWS_REGION}.amazonaws.com/{CONTENT_PATH}"
 log_file_name = "videos_downloaded.txt"
