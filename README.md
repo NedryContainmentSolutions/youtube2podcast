@@ -11,7 +11,7 @@ Designed to run on AWS Lambda, the code downloads new clips to S3 and updates a 
 2. Go to the playlist and copy its URL, something like https://www.youtube.com/playlist?list=AbCdEFgHiJkLmNoPqRsTuVwXyZ
 3. Create an AWS S3 bucket
 4. Optionally, create an obscure folder in the root of the bucket to reduce visibility
-5. Apply a policy to the bucket to allow public read access and ListBucket for your AWS user while minimising other rights. See 'sample_bucket_policy.json'.
+5. Apply a policy to the bucket to allow public read access and ListBucket for your AWS user while minimising other rights. See `sample_bucket_policy.json`.
 6. Add a logo file to the bucket/folder, eg. 'logo.png'
 7. Create a new AWS Lambda function.
 8. Create a new execution role and then attach a policy to allow access to the S3 bucket (read and write are needed). See `sample_execution_policy.json` as an example and remember to update your bucket name.
