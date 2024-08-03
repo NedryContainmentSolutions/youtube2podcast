@@ -10,14 +10,15 @@ Designed to run on AWS Lambda, the code downloads new clips to S3 and updates a 
 1. Set the playlist visibility to `Unlisted`
 2. Go to the playlist and copy its URL, something like https://www.youtube.com/playlist?list=AbCdEFgHiJkLmNoPqRsTuVwXyZ
 3. Create an AWS S3 bucket
-4. Optionally, create an obscure folder in the root of the bucket to reduce visibility 
-5. Add a logo file to the bucket/folder, eg. 'logo.png'
-6. Create a new AWS Lambda function.
-7. Create a new execution role and then attach a policy to allow access to the S3 bucket (read and write are needed). See `sample_execution_policy.json` as an example and remember to update your bucket name.
-8. Set the execution timeout to a few minutes.
-9. Create a [Lambda layer](https://docs.aws.amazon.com/lambda/latest/dg/python-package.html#python-package-create-dependencies) for ffmpeg (see `create_ffmpeg_layer.sh`) and attach it to the Lambda function
-10. Use `build.sh` to package youtube2podcast into a deployment_package.zip and upload as the Lambda code
-11. Edit the Lambda's environment variables, optionally including a Webhook URL for notifications
+4. Optionally, create an obscure folder in the root of the bucket to reduce visibility
+5. Apply a policy to the bucket to allow public read access and ListBucket for your AWS user while minimising other rights. See 'sample_bucket_policy.json'.
+6. Add a logo file to the bucket/folder, eg. 'logo.png'
+7. Create a new AWS Lambda function.
+8. Create a new execution role and then attach a policy to allow access to the S3 bucket (read and write are needed). See `sample_execution_policy.json` as an example and remember to update your bucket name.
+9. Set the execution timeout to a few minutes.
+10. Create a [Lambda layer](https://docs.aws.amazon.com/lambda/latest/dg/python-package.html#python-package-create-dependencies) for ffmpeg (see `create_ffmpeg_layer.sh`) and attach it to the Lambda function
+11. Use `build.sh` to package youtube2podcast into a deployment_package.zip and upload as the Lambda code
+12. Edit the Lambda's environment variables, optionally including a Webhook URL for notifications
 
 ```
 AWS_REGION="yr-region-1"
