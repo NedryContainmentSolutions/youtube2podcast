@@ -24,9 +24,9 @@ MAX_FILES_TO_DOWNLOAD = int(os.getenv("MAX_FILES_TO_DOWNLOAD", "2"))
 
 youtube_url_prefix = "https://www.youtube.com/watch?v="
 s3_bucket_url = f"https://{BUCKET_NAME}.s3.{AWS_REGION}.amazonaws.com/{CONTENT_PATH}"
-log_file_name = "videos_downloaded.txt"
-download_log_json = "videos_downloaded.json"
-data_folder = "/tmp"
+#  = "videos_downloaded.txt"
+download_log = "videos_downloaded.jsonl"
+working_folder = "/tmp"
 # For yt-dlp's cache
 os.environ["XDG_CACHE_HOME"] = "/tmp/yt-dlp/cache"
 
@@ -48,8 +48,8 @@ channel_header = (
     f"<itunes:author>{podcast_author}</itunes:author>\n"
     f"<itunes:summary>{podcast_description}</itunes:summary>\n"
     f"<itunes:explicit>{podcast_explicit}</itunes:explicit>\n"
-    f"<itunes:category text=\"{podcast_category}\"/>\n"
-    f"<itunes:image href=\"{s3_bucket_url}{podcast_image}\"/>\n"
+    f'<itunes:category text="{podcast_category}"/>\n'
+    f'<itunes:image href="{s3_bucket_url}{podcast_image}"/>\n'
     f"<itunes:owner>\n"
     f"<itunes:name>{podcast_author}</itunes:name>\n"
     f"<itunes:email>{podcast_email}</itunes:email>\n"
@@ -66,7 +66,7 @@ def download_audio_from_yt_video(url, format_code="140"):
     logger.info("---- Downloading audio")
 
     ydl_opts = {
-        "outtmpl": data_folder + "/%(title)s.%(ext)s",
+        "outtmpl": working_folder + "/%(title)s.%(ext)s",
         "format": format_code,
         "postprocessors": [
             {
@@ -120,23 +120,33 @@ def get_video_title(url):
     return html.escape(safe_title)
 
 
+def write_download_log(download_list, filename):
+    file_path = f"{working_folder}/{filename}"
+    logger.info(f"--- Logging addition to {file_path}")
+    with open(file_path, "w") as file:
+        for download in download_list:
+            json_line = json.dumps(download)
+            file.write(json_line + "\n")
+    logger.info("---- Done")
+
+
 def append_to_file(filename, string):
-    logger.info(f"--- Logging addition to {data_folder}/{filename}")
-    with open(f"{data_folder}/{filename}", "a") as file:
+    logger.info(f"--- Logging addition to {working_folder}/{filename}")
+    with open(f"{working_folder}/{filename}", "a") as file:
         file.write(string)
         file.write("\n")
         logger.info("---- Done")
 
 
 def check_if_in_file(filename, string):
-    if os.path.exists(f"{data_folder}/{filename}"):
-        with open(f"{data_folder}/{filename}", "r") as file:
+    if os.path.exists(f"{working_folder}/{filename}"):
+        with open(f"{working_folder}/{filename}", "r") as file:
             file_contents = file.read()
         # Check if the string is present in the file contents
         return string in file_contents
     else:
         logger.info(
-            f"File {data_folder}/{filename} does not exist and so we're starting fresh"
+            f"File {working_folder}/{filename} does not exist and so we're starting fresh"
         )
         return False
 
@@ -164,7 +174,7 @@ def upload_file_to_s3(filename):
     s3 = boto3.client("s3", region_name=AWS_REGION)
     try:
         s3.upload_file(
-            f"{data_folder}/{filename}", BUCKET_NAME, CONTENT_PATH + filename
+            f"{working_folder}/{filename}", BUCKET_NAME, CONTENT_PATH + filename
         )
         logger.info("-- Done")
         return True
@@ -173,13 +183,38 @@ def upload_file_to_s3(filename):
         return False
 
 
+def get_download_log(filename):
+    objects_list = []
+
+    logger.info(f"-- Getting {filename} from S3")
+    # Create an S3 client and download the file
+    s3 = boto3.client("s3", region_name=AWS_REGION)
+    try:
+        s3.download_file(
+            BUCKET_NAME, CONTENT_PATH + filename, f"{working_folder}/{filename}"
+        )
+        logger.info("-- Done")
+    except Exception as e:
+        logger.error(f"-- Failed {str(e)}")
+        return None
+
+    # Open the JSONL file
+    with open(filename, "r") as infile:
+        for line in infile:
+            # Parse each line as a JSON object and append to the list
+            json_obj = json.loads(line.strip())
+            objects_list.append(json_obj)
+
+    return objects_list
+
+
 def get_file_from_s3(filename):
     logger.info(f"-- Getting {filename} from S3")
     # Create an S3 client and download the file
     s3 = boto3.client("s3", region_name=AWS_REGION)
     try:
         s3.download_file(
-            BUCKET_NAME, CONTENT_PATH + filename, f"{data_folder}/{filename}"
+            BUCKET_NAME, CONTENT_PATH + filename, f"{working_folder}/{filename}"
         )
         logger.info("-- Done")
         return True
@@ -189,15 +224,15 @@ def get_file_from_s3(filename):
 
 
 def generate_rss_file(filename):
-    # Logfile format: YouTubeURL | Title | Time/Date | GUID | S3 URL | FileSizeBytes | description
-    with open(f"{data_folder}/{output_rss_filename}", "w") as output_file:
+    # Logfile format: YouTubeURL | Title | Time/Date | GUID | S3 URL | FileSizeBytes | Description
+    with open(f"{working_folder}/{output_rss_filename}", "w") as output_file:
         output_file.write(podcast_header)
         output_file.write("\n")
         output_file.write(channel_header)
 
-        if os.path.exists(f"{data_folder}/{filename}"):
+        if os.path.exists(f"{working_folder}/{filename}"):
             # Read the file contents
-            with open(f"{data_folder}/{filename}", "r") as input_file:
+            with open(f"{working_folder}/{filename}", "r") as input_file:
                 # Loop through file
                 for line in input_file:
                     # Split the line into a list of words
@@ -227,74 +262,95 @@ def process_videos():
     playlist = get_playlist(PLAYLIST_URL)
 
     logger.info("Get log file from S3")
-    get_file_from_s3(log_file_name)
+    # get_file_from_s3(download_log)
+
+    download_list = get_download_log()
+    if download_list is None:
+        logger.error("Problem reading jsonl-formatted log from S3")
+        return
+
     now = datetime.now()
     logger.info("Processing videos from playlist:")
     files_downloaded = 0
     for video in playlist:
-        this_video = youtube_url_prefix + video["id"]
-        if check_if_in_file(log_file_name, this_video):
-            logger.info(f"-- {this_video} - Already got this video, skipping")
+        current_url = youtube_url_prefix + video["id"]
+        if any(obj["youtube_url"] == current_url for obj in download_list):
+            logger.info(f"-- {current_url} - Already got this video, skipping")
+            continue
+
+        logger.info(f"-- {current_url} - New video to process")
+        episode_GUID = str(uuid.uuid4())
+
+        logger.info("--- Download audio and process")
+        filepath, description = download_audio_from_yt_video(current_url)
+        description = html.escape(
+            description[:500].replace("|", " ").replace("\n", " ")
+        )
+
+        if not filepath:
+            logger.error(f"ERROR: failed to download {current_url}")
+            continue
+
+        file_size = os.path.getsize(filepath)
+        logger.info("--- Upload audio to S3")
+        if not upload_audio_to_s3(filepath, episode_GUID):
+            logger.error(f"ERROR: failed to upload to s3 {filepath}")
+            continue
+
+        s3_URL = f"{s3_bucket_url}{episode_GUID}.mp4a"
+        title = get_video_title(current_url)
+        # Logfile format: YouTubeURL | Title | Time/Date | GUID | S3 URL | FileSizeBytes | description
+        log_entry = (
+            f"{current_url}|"
+            f"{title}|"
+            f"{now.strftime('%a, %d %b %Y %H:%M:%S +0000')}|"
+            f"{episode_GUID}|"
+            f"{s3_URL}|"
+            f"{str(file_size)}|"
+            f"{description}|"
+        )
+
+        new_download = {
+            "youtube_url": current_url,
+            "title": title,
+            "datetime_str": f"{now.strftime('%a, %d %b %Y %H:%M:%S +0000')}|",
+            "guid": episode_GUID,
+            "s3_url": s3_URL,
+            "file_size": file_size,
+            "description": description,
+        }
+
+        download_list.append(new_download)
+        write_download_log(download_list)
+
+        # append_to_file(download_log, log_entry)
+        # Post to webhook using WEBHOOK_TARGET
+        if WEBHOOK_TARGET:
+            requests.post(
+                url=WEBHOOK_TARGET,
+                json={"content": f"New clip saved: {title}"},
+            )
+
+        # Updating the RSS every time - less efficient but safer in case lambda times out
+        logger.info("Regenerating RSS file")
+        generate_rss_file(download_log)
+        if upload_file_to_s3(download_log) and upload_file_to_s3(output_rss_filename):
+            logger.info("Updated RSS file uploaded to S3")
         else:
-            logger.info(f"-- {this_video} - New video to process")
-            episode_GUID = str(uuid.uuid4())
+            logger.info("Error with RSS file upload to S3")
 
-            logger.info("--- Download audio and process")
-            filepath, description = download_audio_from_yt_video(
-                this_video
+        files_downloaded += 1
+        if files_downloaded >= MAX_FILES_TO_DOWNLOAD:
+            logger.info(
+                f"Stopping because MAX_FILES_TO_DOWNLOAD is {MAX_FILES_TO_DOWNLOAD}"
             )
-            description = html.escape(
-                description[:500].replace("|", " ").replace("\n", " ")
-            )
-
-            if not filepath:
-                logger.error(f"ERROR: failed to download {this_video}")
-            else:
-                file_size = os.path.getsize(filepath)
-                logger.info("--- Upload audio to S3")
-                if upload_audio_to_s3(filepath, episode_GUID):
-                    s3_URL = f"{s3_bucket_url}{episode_GUID}.mp4a"
-                    title = get_video_title(this_video)
-                    # Logfile format: YouTubeURL | Title | Time/Date | GUID | S3 URL | FileSizeBytes | description
-                    log_entry = (
-                        f"{this_video}|"
-                        f"{title}|"
-                        f"{now.strftime('%a, %d %b %Y %H:%M:%S +0000')}|"
-                        f"{episode_GUID}|"
-                        f"{s3_URL}|"
-                        f"{str(file_size)}|"
-                        f"{description}|"
-                    )
-
-                    append_to_file(log_file_name, log_entry)
-                    # Post to webhook using WEBHOOK_TARGET
-                    if WEBHOOK_TARGET:
-                        requests.post(
-                            url=WEBHOOK_TARGET,
-                            json={"content": f"New clip saved: {title}"},
-                        )
-
-                    # Updating the RSS every time - less efficient but safer in case lambda times out
-                    logger.info("Regenerating RSS file")
-                    generate_rss_file(log_file_name)
-                    if upload_file_to_s3(log_file_name) and upload_file_to_s3(
-                        output_rss_filename
-                    ):
-                        logger.info("Updated RSS file uploaded to S3")
-                    else:
-                        logger.info("Error with RSS file upload to S3")
-
-                    files_downloaded += 1
-                    if files_downloaded >= MAX_FILES_TO_DOWNLOAD:
-                        logger.info(
-                            f"Stopping because MAX_FILES_TO_DOWNLOAD is {MAX_FILES_TO_DOWNLOAD}"
-                        )
-                        break
+            break
 
     if files_downloaded > 0:
         logger.info(f"Done - downloaded {files_downloaded} files")
     else:
         logger.info("Nothing new so nothing to do")
+
 
 def lambda_handler(event, context):
     try:
@@ -311,11 +367,8 @@ if __name__ == "__main__":
 
     # Regenerate RSS file even if not changes - for dev/test work only
     logger.info("Regenerating RSS file")
-    generate_rss_file(log_file_name)
-    if upload_file_to_s3(log_file_name) and upload_file_to_s3(
-        output_rss_filename
-    ):
+    generate_rss_file(download_log)
+    if upload_file_to_s3(download_log) and upload_file_to_s3(output_rss_filename):
         logger.info("Updated RSS file uploaded to S3")
     else:
         logger.info("Error with RSS file upload to S3")
-
