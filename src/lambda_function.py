@@ -46,6 +46,8 @@ podcast_header = '<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0" xml
 channel_header = (
     f"<channel>\n<title>{podcast_title}</title>\n"
     f"<description>{podcast_description}</description>\n"
+    "<link>https://example.com</link>\n"
+    "<language>en-us</language>\n"
     f"<itunes:author>{podcast_author}</itunes:author>\n"
     f"<itunes:summary>{podcast_description}</itunes:summary>\n"
     f"<itunes:explicit>{podcast_explicit}</itunes:explicit>\n"
@@ -130,13 +132,13 @@ def append_to_file(filename, string):
 
 def upload_audio_to_s3(filepath, episode_GUID):
     logger.info(f"---- Uploading {filepath} to AWS")
-    # Create an S3 client and upload the file
+
     s3 = boto3.client("s3", region_name=AWS_REGION)
     try:
         s3.upload_file(
             filepath,
             BUCKET_NAME,
-            CONTENT_PATH + episode_GUID + ".mp4a",
+            CONTENT_PATH + episode_GUID + ".mp4a", ExtraArgs = {'ContentType': 'audio/mp4'}
         )
         logger.info("---- Done")
         return True
@@ -147,11 +149,15 @@ def upload_audio_to_s3(filepath, episode_GUID):
 
 def upload_file_to_s3(filename):
     logger.info(f"Uploading {filename} to AWS")
-    # Create an S3 client and upload the file
+
+    extra_args = {}
+    if filename.endswith(".rss"):
+        extra_args["ContentType"] = "application/rss+xml"
+
     s3 = boto3.client("s3", region_name=AWS_REGION)
     try:
         s3.upload_file(
-            f"{working_folder}/{filename}", BUCKET_NAME, CONTENT_PATH + filename
+            f"{working_folder}/{filename}", BUCKET_NAME, CONTENT_PATH + filename, ExtraArgs=extra_args
         )
         logger.info("-- Done")
         return True
@@ -165,7 +171,7 @@ def get_download_log(filename):
 
     logger.info(f"-- Getting {filename} from S3")
     output_path = f"{working_folder}/{filename}"
-    # Create an S3 client and download the file
+
     s3 = boto3.client("s3", region_name=AWS_REGION)
     try:
         s3.download_file(
@@ -210,16 +216,17 @@ def generate_rss_file(video_list):
         for video in video_list:
             output_file.write("<item>\n")
             output_file.write(f"<title>{video['title']}</title>\n")
-            if "description" in video:
+            output_file.write(f"<link>{video['youtube_url']}</link>\n")
+            if ("description" in video) and (video['description'] != ""):
                 output_file.write(
-                    f"<description>{video['youtube_url']}\n{video['description']}</description>\n"
+                    f"<description>Source: {video['youtube_url']}. {video['description']}</description>\n"
                 )
             else:
                 output_file.write(f"<description>{video['youtube_url']}</description>\n")
             output_file.write(f"<guid>{video['guid']}</guid>\n")
             output_file.write(f"<pubDate>{video['datetime_str']}</pubDate>\n")
             output_file.write(
-                f"<enclosure url=\"{video['s3_url']}\" type=\"audio/mpeg\" length=\"{video['file_size']}\"/>\n"
+                f"<enclosure url=\"{video['s3_url']}\" type=\"audio/x-m4a\" length=\"{video['file_size']}\"/>\n"
             )
             output_file.write("</item>\n")
 
@@ -267,7 +274,7 @@ def process_videos():
             logger.error(f"ERROR: failed to upload to s3 {filepath}")
             continue
 
-        s3_URL = f"{s3_bucket_url}{episode_GUID}.mp4a"
+        s3_URL = f"{s3_bucket_url}{episode_GUID}.m4a"
 
         new_download = {
             "youtube_url": current_url,
@@ -321,7 +328,7 @@ def lambda_handler(event, context):
 
 
 if __name__ == "__main__":
-    process_videos()
+    # process_videos()
 
     # Regenerate RSS file even if not changes - for dev/test work only
     logger.info("Regenerating RSS file")
