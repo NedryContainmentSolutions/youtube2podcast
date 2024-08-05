@@ -1,5 +1,6 @@
 import os
 import boto3
+from botocore.exceptions import ClientError
 import uuid
 import datetime
 from datetime import datetime
@@ -171,13 +172,20 @@ def get_download_log(filename):
 
     logger.info(f"-- Getting {filename} from S3")
     output_path = f"{working_folder}/{filename}"
-
     s3 = boto3.client("s3", region_name=AWS_REGION)
+
     try:
-        s3.download_file(
-            BUCKET_NAME, CONTENT_PATH + filename, output_path
-        )
+        s3.download_file(BUCKET_NAME, CONTENT_PATH + filename, output_path)
         logger.info("-- Done")
+    except ClientError as e:
+        error_code = e.response['Error']['Code']
+        if error_code == '404':
+            logger.warning("-- File does not exist. Assuming first run")
+            # return an empty object list
+            return []
+        else:
+            logger.error(f"-- Failed {str(e)}")
+            return None
     except Exception as e:
         logger.error(f"-- Failed {str(e)}")
         return None
@@ -328,7 +336,7 @@ def lambda_handler(event, context):
 
 
 if __name__ == "__main__":
-    # process_videos()
+    process_videos()
 
     # Regenerate RSS file even if not changes - for dev/test work only
     logger.info("Regenerating RSS file")
