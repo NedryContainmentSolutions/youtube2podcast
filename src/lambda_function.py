@@ -139,7 +139,7 @@ def upload_audio_to_s3(filepath, episode_GUID):
         s3.upload_file(
             filepath,
             BUCKET_NAME,
-            CONTENT_PATH + episode_GUID + ".mp4a", ExtraArgs = {'ContentType': 'audio/mp4'}
+            CONTENT_PATH + episode_GUID + ".m4a", ExtraArgs = {'ContentType': 'audio/x-m4a'}
         )
         logger.info("---- Done")
         return True
