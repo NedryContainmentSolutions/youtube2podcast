@@ -89,7 +89,7 @@ def download_audio_from_yt_video(url, format_code="140"):
             return (
                 ydl.prepare_filename(info_with_audio_extension),
                 info_with_audio_extension["description"],
-                info_with_audio_extension["title"]
+                info_with_audio_extension["uploader"] + " | " + info_with_audio_extension["title"]
             )
 
     except Exception as e:
