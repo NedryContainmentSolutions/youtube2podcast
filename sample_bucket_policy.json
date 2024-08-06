@@ -8,8 +8,11 @@
             "Action": "s3:ListBucket",
             "Resource": "arn:aws:s3:::my-podcast-bucket-01",
             "Condition": {
-                "StringNotEquals": {
-                    "aws:PrincipalArn": "arn:aws:iam::123456789012:user/some.iam.user"
+                "ForAllValues:StringNotEquals": {
+                    "aws:PrincipalArn": [
+                        "arn:aws:iam::123456789012:role/service-role/youtube2PodcastRole",
+                        "arn:aws:iam::123456789012:user/your.iam.user"
+                    ]
                 }
             }
         },
