@@ -268,13 +268,14 @@ def process_videos():
 
         logger.info("--- Download audio and process")
         filepath, description, title = download_audio_from_yt_video(current_url)
-        description = html.escape(
-            description[:500].replace("|", " ").replace("\n", " ")
-        )
 
         if not filepath:
             logger.error(f"ERROR: failed to download {current_url}")
             continue
+
+        description = html.escape(
+            description[:500].replace("|", " ").replace("\n", " ")
+        )
 
         file_size = os.path.getsize(filepath)
         logger.info("--- Upload audio to S3")
