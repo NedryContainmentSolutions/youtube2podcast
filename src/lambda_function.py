@@ -66,7 +66,7 @@ output_rss_filename = "podcast.rss"
 
 
 def download_audio_from_yt_video(url, format_code="140"):
-    logger.info("---- Downloading audio")
+    logger.info("Downloading audio")
 
     ydl_opts = {
         "outtmpl": working_folder + "/%(title)s.%(ext)s",
@@ -98,7 +98,7 @@ def download_audio_from_yt_video(url, format_code="140"):
 
 
 def get_playlist(playlist_url):
-    logger.info(f"-- Getting playlist {playlist_url} from YouTube")
+    logger.info(f"Getting playlist {playlist_url} from YouTube")
     ydl_opts = {
         "quiet": False,
         "extract_flat": True,  # Extract metadata only, no video downloads
@@ -109,30 +109,30 @@ def get_playlist(playlist_url):
         for entry in info_dict["entries"]:
             video_info = {"id": entry.get("id", ""), "title": entry.get("title", "")}
             playlist_videos.append(video_info)
-    logger.info("-- Done")
+    logger.info("Done")
     return playlist_videos
 
 
 def write_download_log(download_list, filename):
     file_path = f"{working_folder}/{filename}"
-    logger.info(f"--- Logging addition to {file_path}")
+    logger.info(f"Logging addition to {file_path}")
     with open(file_path, "w") as file:
         for download in download_list:
             json_line = json.dumps(download)
             file.write(json_line + "\n")
-    logger.info("---- Done")
+    logger.info("Done")
 
 
 def append_to_file(filename, string):
-    logger.info(f"--- Logging addition to {working_folder}/{filename}")
+    logger.info(f"Logging addition to {working_folder}/{filename}")
     with open(f"{working_folder}/{filename}", "a") as file:
         file.write(string)
         file.write("\n")
-        logger.info("---- Done")
+        logger.info("Done")
 
 
 def upload_audio_to_s3(filepath, episode_GUID):
-    logger.info(f"---- Uploading {filepath} to AWS")
+    logger.info(f"Uploading {filepath} to AWS")
 
     s3 = boto3.client("s3", region_name=AWS_REGION)
     try:
@@ -141,10 +141,11 @@ def upload_audio_to_s3(filepath, episode_GUID):
             BUCKET_NAME,
             CONTENT_PATH + episode_GUID + ".m4a", ExtraArgs = {'ContentType': 'audio/x-m4a'}
         )
-        logger.info("---- Done")
+        logger.info("Done, deleting local copy")
+        os.remove(filepath)
         return True
     except Exception as e:
-        logger.error(f"-- Failed {str(e)}")
+        logger.error(f"Failed {str(e)}")
         return False
 
 
@@ -160,34 +161,34 @@ def upload_file_to_s3(filename):
         s3.upload_file(
             f"{working_folder}/{filename}", BUCKET_NAME, CONTENT_PATH + filename, ExtraArgs=extra_args
         )
-        logger.info("-- Done")
+        logger.info("Done")
         return True
     except Exception as e:
-        logger.error(f"-- Failed {str(e)}")
+        logger.error(f"Failed {str(e)}")
         return False
 
 
 def get_download_log(filename):
     objects_list = []
 
-    logger.info(f"-- Getting {filename} from S3")
+    logger.info(f"Getting {filename} from S3")
     output_path = f"{working_folder}/{filename}"
     s3 = boto3.client("s3", region_name=AWS_REGION)
 
     try:
         s3.download_file(BUCKET_NAME, CONTENT_PATH + filename, output_path)
-        logger.info("-- Done")
+        logger.info("Done")
     except ClientError as e:
         error_code = e.response['Error']['Code']
         if error_code == '404':
-            logger.warning("-- File does not exist. Assuming first run")
+            logger.warning("File does not exist. Assuming first run")
             # return an empty object list
             return []
         else:
-            logger.error(f"-- Failed {str(e)}")
+            logger.error(f"Failed {str(e)}")
             return None
     except Exception as e:
-        logger.error(f"-- Failed {str(e)}")
+        logger.error(f"Failed {str(e)}")
         return None
 
     # Open the JSONL file
@@ -201,17 +202,17 @@ def get_download_log(filename):
 
 
 def get_file_from_s3(filename):
-    logger.info(f"-- Getting {filename} from S3")
+    logger.info(f"Getting {filename} from S3")
     # Create an S3 client and download the file
     s3 = boto3.client("s3", region_name=AWS_REGION)
     try:
         s3.download_file(
             BUCKET_NAME, CONTENT_PATH + filename, f"{working_folder}/{filename}"
         )
-        logger.info("-- Done")
+        logger.info("Done")
         return True
     except Exception as e:
-        logger.error(f"-- Failed {str(e)}")
+        logger.error(f"Failed {str(e)}")
         return False
 
 
@@ -260,13 +261,13 @@ def process_videos():
     for video in playlist:
         current_url = youtube_url_prefix + video["id"]
         if any(obj["youtube_url"] == current_url for obj in download_list):
-            logger.info(f"-- {current_url} - Already got this video, skipping")
+            logger.info(f"{current_url} - Already got this video, skipping")
             continue
 
-        logger.info(f"-- {current_url} - New video to process")
+        logger.info(f"{current_url} - New video to process")
         episode_GUID = str(uuid.uuid4())
 
-        logger.info("--- Download audio and process")
+        logger.info("Download audio and process")
         filepath, description, title = download_audio_from_yt_video(current_url)
 
         if not filepath:
@@ -278,7 +279,7 @@ def process_videos():
         )
 
         file_size = os.path.getsize(filepath)
-        logger.info("--- Upload audio to S3")
+        logger.info("Upload audio to S3")
         if not upload_audio_to_s3(filepath, episode_GUID):
             logger.error(f"ERROR: failed to upload to s3 {filepath}")
             continue
@@ -321,7 +322,11 @@ def process_videos():
             break
 
     if files_downloaded > 0:
-        logger.info(f"Done - downloaded {files_downloaded} files")
+        # Clean up
+        os.remove(working_folder + "/" + download_log_filename)
+        os.remove(working_folder + "/" + output_rss_filename)
+        logger.info("Working folder cleanup complete.")
+        logger.info(f"All done - downloaded {files_downloaded} files")
     else:
         logger.info("Nothing new so nothing to do")
 
@@ -339,7 +344,8 @@ def lambda_handler(event, context):
 if __name__ == "__main__":
     process_videos()
 
-    # Regenerate RSS file even if not changes - for dev/test work only
+    # Regenerate RSS file even if no changes - for dev/test work only
+    """
     logger.info("Regenerating RSS file")
     download_list = get_download_log(download_log_filename)
     generate_rss_file(download_list)
@@ -347,5 +353,6 @@ if __name__ == "__main__":
         logger.info("Updated RSS file uploaded to S3")
     else:
         logger.info("Error with RSS file upload to S3")
-
+    """
+    
     
