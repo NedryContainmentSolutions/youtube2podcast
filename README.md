@@ -63,6 +63,8 @@ You can also run this code locally and debug using your IDE of choice. Use the A
 - `pip install -r requirements.txt`, ideally having created a [venv]([venv — Creation of virtual environments — Python 3.12.4 documentation](https://docs.python.org/3/library/venv.html)) first.
 - run lambda_function.py
 
+If you see errors related to blocking by YouTube it's possible that the IPs being used by your Lambda have been blocked/throttled by YouTube. This is apparently to prevent people using the YouTube APIs to pull content for ML training. The easiest work-around is to host the code somewhere else like a home network using a simple cron task to trigger it.
+
 ## Release Process
 
 The `.github/workflows/release.yml` workflow file uses `build.sh` to produce a deployment package zip suitable for updating the Lambda.
