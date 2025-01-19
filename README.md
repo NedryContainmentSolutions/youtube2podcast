@@ -50,7 +50,8 @@ The code will post `{"content": "[video title]"}` to a webhook URL if defined as
 ## Known Issues
 
 - Currently incompatible with Apple Podcasts (works fine with [Overcast](https://overcast.fm/podcasts) ) - likely an RSS format issue
-- YouTube can change often so [yt-dlp]([yt-dlp/yt-dlp: A feature-rich command-line audio/video downloader (github.com)](https://github.com/yt-dlp/yt-dlp)) is updated frequently to handle breaking changes - for this reason, you may need to `pip update` and re-upload the deployment package 
+- YouTube can change often so [yt-dlp]([yt-dlp/yt-dlp: A feature-rich command-line audio/video downloader (github.com)](https://github.com/yt-dlp/yt-dlp)) is updated frequently to handle breaking changes - for this reason, you may need to `pip update` and re-upload the deployment package
+- Google seems to be blocking some AWS IP ranges (maybe to prevent AI firms scraping data using AWS) and so you may need to run this elsewhere, such as a raspberry pi.
 
 ## Troubleshooting
 
